@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบสุ่มคำถาม Flashcard - IoT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+        .flashcard-inner {
+            transition: transform 0.6s;
+        }
+        .flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="bg-blue-50 min-h-screen font-sans text-gray-800">
+
+    <div class="max-w-4xl mx-auto p-6 mt-10">
+        <h1 class="text-3xl font-bold text-center text-blue-700 mb-8">ระบบสุ่มตอบคำถาม: Internet of Things (IoT)</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <!-- ส่วนจัดการรายชื่อและการสุ่มคน -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">1. รายชื่อผู้ตอบคำถาม</h2>
+                <p class="text-sm text-gray-500 mb-2">ใส่รายชื่อผู้เรียน (คั่นด้วยบรรทัดใหม่ หรือ ลูกน้ำ)</p>
+                <textarea id="namesInput" class="w-full h-32 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="สมชาย&#10;สมหญิง&#10;มานี&#10;ปิติ"></textarea>
+                
+                <div class="flex items-center mt-3 mb-3">
+                    <input type="checkbox" id="noRepeat" class="mr-2 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" checked>
+                    <label for="noRepeat" class="text-sm text-gray-700 cursor-pointer">สุ่มแล้วตัดชื่อออก (ป้องกันสุ่มได้คนเดิม)</label>
+                </div>
+
+                <button onclick="randomStudent()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    🎲 สุ่มผู้ตอบคำถาม
+                </button>
+
+                <div class="mt-6 text-center">
+                    <p class="text-gray-500">ผู้โชคดีที่ต้องตอบคำถามคือ...</p>
+                    <div id="studentResult" class="text-3xl font-bold text-orange-600 mt-3 h-14 flex items-center justify-center bg-orange-50 rounded-lg border-2 border-orange-200 transition-transform duration-300">ยังไม่ได้สุ่ม</div>
+                    <p id="removeFeedback" class="text-sm text-green-600 mt-2 h-5 opacity-0 transition-opacity duration-300"></p>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-100 flex-grow">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-semibold text-gray-600">ประวัติคนที่ตอบแล้ว:</p>
+                        <button onclick="clearHistory()" class="text-xs text-red-500 hover:text-red-700 hover:underline">ล้างประวัติ</button>
+                    </div>
+                    <div id="historyList" class="text-sm text-gray-500 flex flex-wrap gap-2">
+                        <span class="italic">ยังไม่มีผู้ถูกสุ่ม</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ส่วนของ Flashcard และการสุ่มคำถาม -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">2. คำถาม Flashcard (สุ่มจาก 10 ข้อ)</h2>
+                
+                <button onclick="randomQuestion()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 mb-6">
+                    🃏 สุ่มคำถาม IoT
+                </button>
+
+                <!-- 3D Flashcard Container -->
+                <div class="flex-grow flex flex-col items-center justify-center">
+                    <div id="flashcardContainer" class="w-full h-64 perspective-1000 cursor-pointer hidden" onclick="flipCard()">
+                        <div class="flashcard-inner relative w-full h-full text-center transform-style-3d shadow-md rounded-xl">
+                            
+                            <!-- ด้านหน้า (คำถาม) -->
+                            <div class="absolute w-full h-full backface-hidden bg-white border-2 border-blue-200 rounded-xl flex flex-col items-center justify-center p-6">
+                                <span class="text-sm text-blue-500 font-bold mb-2">คำถาม (Front)</span>
+                                <p id="cardFront" class="text-lg font-medium text-gray-800"></p>
+                                <p class="text-xs text-gray-400 mt-4">(คลิกที่การ์ดเพื่อดูคำตอบ)</p>
+                            </div>
+
+                            <!-- ด้านหลัง (คำตอบ) -->
+                            <div class="absolute w-full h-full backface-hidden bg-blue-50 border-2 border-blue-400 rounded-xl flex flex-col items-center justify-center p-6 rotate-y-180">
+                                <span class="text-sm text-green-600 font-bold mb-2">คำตอบ (Back)</span>
+                                <p id="cardBack" class="text-md font-medium text-gray-800"></p>
+                                <hr class="w-1/2 border-blue-200 my-3">
+                                <span class="text-xs text-orange-500 font-bold">Hint: <span id="cardHint" class="text-gray-600 font-normal"></span></span>
+                            </div>
+
+                        </div>
+                    </div>
+                    
+                    <div id="placeholder" class="text-gray-400 italic">กรุณากด "สุ่มคำถาม" เพื่อเริ่ม</div>
+                </div>
+
+                <!-- ส่วนให้คะแนน (เพิ่มใหม่) -->
+                <div id="scoringSection" class="flex justify-center gap-4 mt-6 hidden">
+                    <button onclick="recordScore(true)" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-sm border border-green-600">
+                        ✅ ตอบถูก
+                    </button>
+                    <button onclick="recordScore(false)" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-sm border border-red-600">
+                        ❌ ตอบผิด
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const flashcards = [
+            {
+                front: "องค์ประกอบหลัก 3 ส่วนของการทำงานในระบบ IoT",
+                back: "อุปกรณ์อัจฉริยะ (Smart Devices), แอปพลิเคชัน IoT และส่วนติดต่อผู้ใช้แบบกราฟิก (GUI)",
+                hint: "มีทั้งตัวอุปกรณ์, ตัวซอฟต์แวร์วิเคราะห์ และหน้าจอควบคุม"
+            },
+            {
+                front: "หน้าที่ของอุปกรณ์อัจฉริยะ (Smart Devices) ในระบบ IoT",
+                back: "เก็บข้อมูลจากสภาพแวดล้อมและการใช้งาน แล้วส่งข้อมูลผ่านอินเทอร์เน็ตไปยังแอปพลิเคชัน IoT",
+                hint: "ทำงานโดยอาศัยเซนเซอร์และหน่วยประมวลผลฝังตัว"
+            },
+            {
+                front: "องค์ประกอบสำคัญ 5 ส่วนของ IoT",
+                back: "ฮาร์ดแวร์ (Hardware), เครือข่าย (Connectivity), ซอฟต์แวร์ (Software), ข้อมูล (Data) และ ความชาญฉลาด (Intelligent)",
+                hint: "เริ่มตั้งแต่อุปกรณ์, การเชื่อมต่อ, โปรแกรม, ตัวข้อมูล และการวิเคราะห์ด้วย AI"
+            },
+            {
+                front: "อุปกรณ์ IoT ด้านการศึกษา: บอร์ดไมโครคอนโทรลเลอร์แบบมี Wi-Fi",
+                back: "เครื่องมือให้นักเรียนฝึกเขียนโปรแกรม อ่านค่าเซนเซอร์ และเรียนรู้วิทยาการคำนวณ เช่น ESP32 หรือ Raspberry Pi",
+                hint: "บอร์ดอิเล็กทรอนิกส์ที่นิยมใช้เรียนโค้ดดิ้ง"
+            },
+            {
+                front: "ประโยชน์ของเซ็นเซอร์ตรวจวัดคุณภาพอากาศ (Air Quality Node) ในห้องเรียน",
+                back: "ใช้วัดค่า CO2, อุณหภูมิ, ความชื้น และ PM 2.5 เพื่อสั่งงานเครื่องฟอกอากาศหรือพัดลมระบายอากาศอัตโนมัติ",
+                hint: "ตัวช่วยจัดการสภาพแวดล้อมเมื่ออากาศในห้องแย่ลง"
+            },
+            {
+                front: "การประยุกต์ใช้เครื่องอ่านบัตร RFID/NFC ด้านความปลอดภัยและระบบธุรการ",
+                back: "ใช้เช็คชื่อเข้าเรียน, ยืมคืนหนังสืออัตโนมัติ หรือใช้เป็นจุดเช็คอินเพื่อส่งข้อมูลอัปเดตคะแนน",
+                hint: "เทคโนโลยีการแตะบัตรนักเรียน"
+            },
+            {
+                front: "หลักการทำงานพื้นฐาน IoT ส่วนที่ 1: อุปกรณ์และเซนเซอร์",
+                back: "ทำหน้าที่เป็นด่านหน้ารับรู้หรือเก็บข้อมูลจากสภาพแวดล้อม (เช่น อุณหภูมิ, แสง) เปรียบเสมือนดวงตาและหู",
+                hint: "ตัวรับความรู้สึกของระบบ"
+            },
+            {
+                front: "หลักการทำงานพื้นฐาน IoT ส่วนที่ 2: เครือข่ายและการเชื่อมต่อ",
+                back: "นำข้อมูลจากเซนเซอร์ส่งต่อไปยังระบบส่วนกลางหรือคลาวด์ ผ่านช่องทาง เช่น Wi-Fi, 5G เปรียบเสมือนระบบเส้นประสาท",
+                hint: "สะพานเชื่อมต่อข้อมูล (Connectivity)"
+            },
+            {
+                front: "หลักการทำงานพื้นฐาน IoT ส่วนที่ 3: การประมวลผลข้อมูล (Cloud & Edge Layer)",
+                back: "สมองของระบบที่ใช้คิด วิเคราะห์ข้อมูล และตัดสินใจ โดยสามารถใช้ AI หรือ Machine Learning เข้ามาช่วยได้",
+                hint: "ศูนย์รวมการคิดวิเคราะห์ข้อมูลจากทั่วโลก"
+            },
+            {
+                front: "วงจรการทำงานพื้นฐานของ IoT (Input -> Process -> Output)",
+                back: "เซนเซอร์รับข้อมูล (Input) -> ส่งผ่านเครือข่ายไปคลาวด์เพื่อตรวจเงื่อนไข (Process) -> สั่งการให้อุปกรณ์ทำงาน (Output)",
+                hint: "รับข้อมูล วิเคราะห์ แล้วจึงสั่งการแสดงผล"
+            }
+        ];
+
+        let pickedHistory = [];
+        let isSpinning = false;
+
+        // ตัวแปรสำหรับระบบสุ่มคำถามแบบไม่ซ้ำ และให้คะแนน
+        let remainingCards = Array.from({length: flashcards.length}, (_, i) => i);
+        let scoreResults = [];
+        let currentStudent = "ไม่ระบุชื่อ";
+        let currentQuestionIndex = -1;
+
+        // ฟังก์ชันสร้างหน้าต่างแจ้งเตือน (แทนที่ alert เดิม)
+        function showModal(title, message, isHtml = false) {
+            let modal = document.getElementById('customModal');
+            if (!modal) {
+                const modalHtml = `
+                <div id="customModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl transform transition-all flex flex-col max-h-[90vh]">
+                        <h3 id="modalTitle" class="text-xl font-bold text-gray-900 mb-2"></h3>
+                        <div id="modalMessage" class="text-gray-600 mb-6 overflow-y-auto"></div>
+                        <button id="modalCloseBtn" onclick="closeModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 mt-auto">ตกลง</button>
+                    </div>
+                </div>`;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                modal = document.getElementById('customModal');
+            }
+            
+            document.getElementById('modalTitle').innerText = title;
+            
+            if (isHtml) {
+                document.getElementById('modalMessage').innerHTML = message;
+                document.getElementById('modalCloseBtn').classList.add('hidden'); // ซ่อนปุ่มเดิมเพราะจะใส่ปุ่มเฉพาะใน HTML
+            } else {
+                document.getElementById('modalMessage').innerText = message;
+                document.getElementById('modalCloseBtn').classList.remove('hidden');
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('customModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function randomStudent() {
+            if (isSpinning) return; // ป้องกันการกดปุ่มรัวๆ
+
+            const inputEl = document.getElementById('namesInput');
+            const input = inputEl.value;
+            if (!input.trim()) {
+                showModal("แจ้งเตือน", "กรุณาใส่รายชื่อผู้เรียนก่อนทำการสุ่ม!");
+                return;
+            }
+            
+            // แยกรายชื่อด้วยบรรทัดใหม่หรือลูกน้ำ
+            let namesArray = input.split(/[\n,]+/).map(name => name.trim()).filter(name => name.length > 0);
+            
+            if (namesArray.length === 0) {
+                 showModal("แจ้งเตือน", "ไม่พบรูปแบบรายชื่อที่ถูกต้อง");
+                 return;
+            }
+
+            isSpinning = true;
+            const resultDiv = document.getElementById('studentResult');
+            resultDiv.classList.remove("text-orange-600", "scale-110");
+            resultDiv.classList.add("text-blue-500");
+
+            // เอฟเฟกต์หมุนสลับชื่ออย่างรวดเร็ว (Slot Machine)
+            let spinCount = 0;
+            const maxSpins = 15; 
+            const spinInterval = setInterval(() => {
+                const tempRandom = namesArray[Math.floor(Math.random() * namesArray.length)];
+                resultDiv.innerText = tempRandom;
+                spinCount++;
+
+                if (spinCount >= maxSpins) {
+                    clearInterval(spinInterval);
+                    finalizeStudentPick(namesArray, inputEl);
+                }
+            }, 80); 
+        }
+
+        function finalizeStudentPick(namesArray, inputEl) {
+            const randomIndex = Math.floor(Math.random() * namesArray.length);
+            const selected = namesArray[randomIndex];
+            
+            currentStudent = selected; // บันทึกชื่อผู้ตอบคำถามเพื่อนำไปเชื่อมกับคะแนน
+
+            const resultDiv = document.getElementById('studentResult');
+            resultDiv.innerText = `🎉 ${selected} 🎉`;
+            resultDiv.classList.remove("text-blue-500");
+            resultDiv.classList.add("text-orange-600", "scale-110");
+            
+            setTimeout(() => resultDiv.classList.remove("scale-110"), 400);
+
+            // บันทึกประวัติและอัปเดตหน้าจอ
+            pickedHistory.push(selected);
+            updateHistoryUI();
+
+            const feedbackEl = document.getElementById('removeFeedback');
+
+            // เช็คว่าติ๊กให้ลบชื่อผู้ที่ตอบไปแล้วหรือไม่
+            const noRepeat = document.getElementById('noRepeat').checked;
+            if (noRepeat) {
+                namesArray.splice(randomIndex, 1); // ตัดชื่อที่ถูกเลือกออก
+                inputEl.value = namesArray.join('\n'); // คืนค่าที่เหลือลงใน textarea
+                
+                // แสดงข้อความยืนยันการลบชื่อ
+                feedbackEl.innerText = `✔️ ตัดชื่อ "${selected}" ออกจากรายชื่อแล้ว`;
+                feedbackEl.classList.remove('opacity-0');
+                
+                // ซ่อนข้อความแจ้งเตือนหลังจากผ่านไป 3 วินาที
+                setTimeout(() => {
+                    feedbackEl.classList.add('opacity-0');
+                }, 3000);
+            } else {
+                feedbackEl.classList.add('opacity-0');
+            }
+            
+            isSpinning = false;
+        }
+
+        function updateHistoryUI() {
+            const historyDiv = document.getElementById('historyList');
+            if (pickedHistory.length === 0) {
+                historyDiv.innerHTML = '<span class="italic">ยังไม่มีผู้ถูกสุ่ม</span>';
+                return;
+            }
+            // นำรายชื่อในประวัติมาสร้างเป็นป้ายแสดงผล (Tag)
+            historyDiv.innerHTML = pickedHistory.map(name => 
+                `<span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full border border-gray-300 shadow-sm">${name}</span>`
+            ).join('');
+        }
+
+        function clearHistory() {
+            pickedHistory = [];
+            updateHistoryUI();
+        }
+
+        function randomQuestion() {
+            // ถ้าคำถามหมดแล้ว ให้แสดงหน้าต่างสรุปผล
+            if (remainingCards.length === 0) {
+                showSummary();
+                return;
+            }
+
+            const container = document.getElementById('flashcardContainer');
+            const placeholder = document.getElementById('placeholder');
+            const scoringSection = document.getElementById('scoringSection');
+            
+            // ซ่อนข้อความ placeholder และแสดงการ์ด + ปุ่มให้คะแนน
+            placeholder.style.display = 'none';
+            container.classList.remove('hidden');
+            scoringSection.classList.remove('hidden');
+            
+            // รีเซ็ตการ์ดให้หันหน้าคำถามเสมอเวลาสุ่มใหม่
+            container.classList.remove('flipped');
+
+            // สุ่มดึง index จากชุดคำถามที่ยังเหลืออยู่ (ไม่ซ้ำเดิม)
+            const randIdx = Math.floor(Math.random() * remainingCards.length);
+            currentQuestionIndex = remainingCards[randIdx];
+            
+            // เอาข้อที่สุ่มได้ออกไปจาก remainingCards
+            remainingCards.splice(randIdx, 1);
+
+            const q = flashcards[currentQuestionIndex];
+
+            // อัปเดตข้อมูลในการ์ด
+            setTimeout(() => {
+                document.getElementById('cardFront').innerText = q.front;
+                document.getElementById('cardBack').innerText = q.back;
+                document.getElementById('cardHint').innerText = q.hint;
+            }, 150); // รอให้พลิกกลับมาก่อนค่อยเปลี่ยน text (ถ้าการ์ดพลิกอยู่)
+        }
+
+        function flipCard() {
+            const container = document.getElementById('flashcardContainer');
+            container.classList.toggle('flipped');
+        }
+
+        // ฟังก์ชันใหม่สำหรับการบันทึกคะแนน
+        function recordScore(isCorrect) {
+            if (currentQuestionIndex === -1) return;
+
+            const q = flashcards[currentQuestionIndex];
+            
+            scoreResults.push({
+                student: currentStudent,
+                question: q.front,
+                correct: isCorrect
+            });
+
+            // ซ่อนปุ่มให้คะแนน
+            document.getElementById('scoringSection').classList.add('hidden');
+            
+            let statusText = isCorrect ? 'ถูกต้อง ✅' : 'ผิด ❌';
+            showModal("บันทึกผลเรียบร้อย", `ผู้ตอบ: ${currentStudent}\nผลลัพธ์: ${statusText}`);
+
+            // ตรวจสอบว่าไพ่หมด 10 ใบหรือยัง
+            if (remainingCards.length === 0) {
+                setTimeout(() => {
+                    closeModal();
+                    showSummary(); // แสดงหน้าต่างสรุปผลหลังจากแจ้งเตือนบันทึกผล 1.5 วินาที
+                }, 1500);
+            }
+        }
+
+        // ฟังก์ชันสำหรับแสดงหน้าสรุปผล
+        function showSummary() {
+            let correctCount = scoreResults.filter(r => r.correct).length;
+            let total = flashcards.length;
+            
+            let html = `
+                <div class="text-center mb-4">
+                    <span class="text-4xl">🏆</span>
+                    <p class="text-lg font-bold text-blue-700 mt-2">ตอบถูก ${correctCount} / ${total} ข้อ</p>
+                </div>
+                <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 text-sm text-left bg-gray-50 mb-4 shadow-inner">
+            `;
+            
+            scoreResults.forEach((r, idx) => {
+                let icon = r.correct ? '<span class="text-green-600 font-bold">✅ ถูก</span>' : '<span class="text-red-600 font-bold">❌ ผิด</span>';
+                let sName = r.student.replace(/</g, "&lt;").replace(/>/g, "&gt;"); // ป้องกันอักขระพิเศษ
+                html += `
+                    <div class="mb-3 pb-3 border-b border-gray-200 last:border-0 last:mb-0 last:pb-0">
+                        <p class="font-bold text-gray-800">${idx+1}. ผู้ตอบ: <span class="text-blue-600">${sName}</span></p>
+                        <p class="text-xs text-gray-500 my-1 truncate">Q: ${r.question}</p>
+                        <p class="text-sm mt-1">${icon}</p>
+                    </div>
+                `;
+            });
+            
+            html += `</div>
+            <button onclick="resetGame()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md">🔄 เริ่มเล่นรอบใหม่ทั้งหมด</button>
+            `;
+            
+            showModal("สรุปผลการตอบคำถาม", html, true);
+        }
+
+        // ฟังก์ชันสำหรับเริ่มรอบใหม่ (รีเซ็ตคำถามและคะแนน)
+        function resetGame() {
+            remainingCards = Array.from({length: flashcards.length}, (_, i) => i);
+            scoreResults = [];
+            currentStudent = "ไม่ระบุชื่อ";
+            currentQuestionIndex = -1;
+            
+            document.getElementById('flashcardContainer').classList.add('hidden');
+            document.getElementById('scoringSection').classList.add('hidden');
+            document.getElementById('placeholder').style.display = 'block';
+            
+            closeModal();
+            showModal("รีเซ็ตระบบแล้ว", "ระบบเริ่มการสุ่มคำถามใหม่ ครบ 10 ข้อเรียบร้อยแล้ว! (สามารถเคลียร์รายชื่อด้านซ้ายเองได้ถ้าต้องการเล่นกับกลุ่มใหม่)");
+        }
+    </script>
+</body>
+</html>
